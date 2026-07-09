@@ -1,8 +1,8 @@
-from datetime import UTC, datetime
+import uuid
 from enum import Enum
-from uuid import uuid7
+from datetime import UTC, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, UUID, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -29,11 +29,12 @@ class TranscodeJob(Base):
         Index("ix_transcode_jobs_queue_claim", "status", "queue_name"),
     )
 
-    id: Mapped[str] = mapped_column(
-        String(36),
-        default=lambda: str(uuid7()),
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         primary_key=True,
         nullable=False,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     queue_name: Mapped[str] = mapped_column(String(100), default="default_queue", index=True, nullable=False)
     status: Mapped[JobStatus] = mapped_column(

@@ -1,9 +1,10 @@
+from uuid import UUID
 from pydantic import BaseModel
 from app.models.audio import JobStatus
 
 
 class QueuedAudioJob(BaseModel):
-    id: str
+    id: UUID
     status: JobStatus
     input_path: str
     input_mime_type: str | None

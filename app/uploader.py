@@ -1,5 +1,6 @@
 import shutil
 from pathlib import Path
+from uuid import UUID
 from fastapi import UploadFile
 from abc import ABC, abstractmethod
 
@@ -8,12 +9,12 @@ from app.config import UPLOAD_DIR
 
 class Uploader(ABC):
     @abstractmethod
-    def upload(self, job_id: str, audio_file: UploadFile) -> tuple[Path, int]:
+    def upload(self, job_id: UUID, audio_file: UploadFile) -> tuple[Path, int]:
         """File that need to be uploaded."""
         pass
 
 class LocalUploader(Uploader):
-    def upload(self, job_id: str, audio_file: UploadFile) -> tuple[Path, int]:
+    def upload(self, job_id: UUID, audio_file: UploadFile) -> tuple[Path, int]:
         safe_filename = Path(audio_file.filename).name
         input_path = UPLOAD_DIR / f"{job_id}_{safe_filename}"
         with input_path.open("wb") as destination:

@@ -1,22 +1,19 @@
-import shutil
-from uuid import uuid7
-from pathlib import Path
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status, exceptions
+from uuid import uuid4, UUID
+from fastapi import APIRouter, Depends, File, UploadFile, status, exceptions
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from app.schemas.audio import QueuedAudioJob
 from app.models.audio import TranscodeJob
 from app.database import get_session
-from app.config import UPLOAD_DIR
-from app.uploader import LocalUploader, Uploader, get_file_uploader
+from app.uploader import Uploader, get_file_uploader
 
 
 audio_router = APIRouter(prefix="/audio", tags=["audio"])
 
 @audio_router.get("/{audio_id}", response_model=QueuedAudioJob, status_code=status.HTTP_200_OK)
 def get_audio(
-    audio_id: str,
+    audio_id: UUID,
     session: DbSession = Depends(get_session),
 ):
     stmt = select(TranscodeJob).where(TranscodeJob.id==audio_id)
@@ -40,9 +37,7 @@ def upload_audio(
             detail="Uploaded file must have a filename",
         )
 
-    # TODO: look into database level uuid.
-    job_id = str(uuid7())
-    # TODO: create an interface to use different strategies.
+    job_id = uuid4()
     input_path, input_size_bytes = file_uploader.upload(job_id, audio_file)
     job = TranscodeJob(
         id=job_id,
