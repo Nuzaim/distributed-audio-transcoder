@@ -1,0 +1,16 @@
+[project]
+name = "transcoder-web"
+version = "0.1.0"
+# requires-python = ">=3.14",
+dependencies = [
+    "fastapi",
+    "SQLAlchemy",
+]
+
+[dependency-groups]
+dev = [
+    "fastapi[standard]",
+]
+
+[tool.fastapi]
+entrypoint = "app.main:app"
