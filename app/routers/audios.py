@@ -19,8 +19,13 @@ def get_audio(
     session: DbSession = Depends(get_session),
 ):
     stmt = select(TranscodeJob).where(TranscodeJob.id==audio_id)
-    result = session.execute(stmt).one()
-    return result[0]
+    job = session.execute(stmt).scalar_one_or_none()
+    if not job:
+        raise exceptions.HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Audio job with ID {audio_id} not found"
+        )
+    return job
 
 @audio_router.post("/upload", response_model=QueuedAudioJob, status_code=status.HTTP_201_CREATED)
 def upload_audio(
