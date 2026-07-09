@@ -5,6 +5,7 @@ version = "0.1.0"
 dependencies = [
     "fastapi",
     "SQLAlchemy",
+    "boto3",
 ]
 
 [dependency-groups]
