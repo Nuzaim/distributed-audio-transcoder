@@ -9,6 +9,7 @@ from app.schemas.audio import QueuedAudioJob
 from app.models.audio import TranscodeJob
 from app.database import get_session
 from app.config import UPLOAD_DIR
+from app.uploader import LocalUploader, Uploader, get_file_uploader
 
 
 audio_router = APIRouter(prefix="/audio", tags=["audio"])
@@ -31,6 +32,7 @@ def get_audio(
 def upload_audio(
     audio_file: UploadFile = File(...),
     session: DbSession = Depends(get_session),
+    file_uploader: Uploader = Depends(get_file_uploader)
 ):
     if not audio_file.filename:
         raise exceptions.HTTPException(
@@ -38,14 +40,10 @@ def upload_audio(
             detail="Uploaded file must have a filename",
         )
 
+    # TODO: look into database level uuid.
     job_id = str(uuid7())
-    safe_filename = Path(audio_file.filename).name
-    input_path = UPLOAD_DIR / f"{job_id}_{safe_filename}"
-
-    with input_path.open("wb") as destination:
-        shutil.copyfileobj(audio_file.file, destination)
-
-    input_size_bytes = input_path.stat().st_size
+    # TODO: create an interface to use different strategies.
+    input_path, input_size_bytes = file_uploader.upload(job_id, audio_file)
     job = TranscodeJob(
         id=job_id,
         input_path=str(input_path),
