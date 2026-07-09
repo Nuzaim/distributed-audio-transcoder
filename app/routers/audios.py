@@ -1,12 +1,14 @@
 from uuid import uuid4, UUID
-from fastapi import APIRouter, Depends, File, UploadFile, status, exceptions
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
+from fastapi import APIRouter, Depends, File, UploadFile, status, exceptions
 
+from app.config import SQS_QUEUE_URL
 from app.schemas.audio import QueuedAudioJob
 from app.models.audio import TranscodeJob
 from app.database import get_session
 from app.uploader import Uploader, get_file_uploader
+from app.message_queue import MessageQueueClient, get_sqs_client
 
 
 audio_router = APIRouter(prefix="/audio", tags=["audio"])
@@ -29,7 +31,8 @@ def get_audio(
 def upload_audio(
     audio_file: UploadFile = File(...),
     session: DbSession = Depends(get_session),
-    file_uploader: Uploader = Depends(get_file_uploader)
+    file_uploader: Uploader = Depends(get_file_uploader),
+    mq_client: MessageQueueClient = Depends(get_sqs_client),
 ):
     if not audio_file.filename:
         raise exceptions.HTTPException(
@@ -39,6 +42,9 @@ def upload_audio(
 
     job_id = uuid4()
     input_path, input_size_bytes = file_uploader.upload(job_id, audio_file)
+    # send message about the audio to be transcoded.
+    # NOTE: use message attributes here?
+    mq_client.send_message(queue_url=SQS_QUEUE_URL, message_body=f'{{input_path: "{input_path}", job_id: "{job_id}"}}')
     job = TranscodeJob(
         id=job_id,
         input_path=str(input_path),
