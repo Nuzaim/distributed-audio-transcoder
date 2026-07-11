@@ -4,7 +4,7 @@ from boto3 import client as aws_client
 
 class MessageQueueClient(ABC):
     @abstractmethod
-    def send_message(self, queue_url: str, message_body: str):
+    def send_message(self, queue_url: str, message_body: str, message_attributes: dict):
         """Send a message to the specified SQS queue."""
         pass
 
@@ -17,9 +17,9 @@ class SQSClient(MessageQueueClient):
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
         )
-    def send_message(self, queue_url: str, message_body: str):
+    def send_message(self, queue_url: str, message_body: str, message_attributes: dict = {}):
         # change to queue by name.
-        self.client.send_message(QueueUrl=queue_url, MessageBody=message_body)
+        self.client.send_message(QueueUrl=queue_url, MessageBody=message_body, MessageAttributes=message_attributes)
 
 def get_sqs_client():
     # TODO: change to config.

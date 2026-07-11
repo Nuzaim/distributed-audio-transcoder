@@ -44,7 +44,16 @@ def upload_audio(
     input_path, input_size_bytes = file_uploader.upload(job_id, audio_file)
     # send message about the audio to be transcoded.
     # NOTE: use message attributes here?
-    mq_client.send_message(queue_url=SQS_QUEUE_URL, message_body=f'{{input_path: "{input_path}", job_id: "{job_id}"}}')
+    mq_client.send_message(
+        queue_url=SQS_QUEUE_URL,
+        message_body=f'{{"input_path": "{input_path}", "job_id": "{job_id}"}}',
+        message_attributes= {
+            'content_type': {
+                'StringValue': 'application/json',
+                'DataType': 'String'
+            }
+        }
+    )
     job = TranscodeJob(
         id=job_id,
         input_path=str(input_path),
