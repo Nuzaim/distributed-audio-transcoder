@@ -4,17 +4,18 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+	"context"
 )
 
 type WorkerJob struct{}
 
-func Transcode(filepath string, wg *sync.WaitGroup, logger *slog.Logger) {
+func Transcode(filepath string, ctx context.Context, logger *slog.Logger) {
 	logger.Info("Starting to process filepath", "path", filepath)
 	time.Sleep(2 * time.Millisecond)
 	logger.Info("Finished processing filepath", "path", filepath)
 }
 
-func CreateInfinitelyConsumingWorkerPool[T any](numWorkers int, workerJob func(work T, waitGroup *sync.WaitGroup, logger *slog.Logger), works <-chan T, logger *slog.Logger) *sync.WaitGroup {
+func CreateInfinitelyConsumingWorkerPool[T any](numWorkers int, workerJob func(work T, ctx context.Context, logger *slog.Logger), works <-chan T, logger *slog.Logger, ctx context.Context) *sync.WaitGroup {
 	var wg sync.WaitGroup
 	if numWorkers <= 0 {
 		return &wg
@@ -24,7 +25,7 @@ func CreateInfinitelyConsumingWorkerPool[T any](numWorkers int, workerJob func(w
 		go func() {
 			for work := range works {
 				logger.Debug("Starting to process work", "work", work)
-				workerJob(work, &wg, logger)
+				workerJob(work, ctx, logger)
 				logger.Debug("Finished processing work", "work", work)
 			}
 			wg.Done()
