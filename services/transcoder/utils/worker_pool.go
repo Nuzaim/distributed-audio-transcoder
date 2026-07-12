@@ -9,13 +9,14 @@ import (
 
 type WorkerJob struct{}
 
-func Transcode(filepath string, ctx context.Context, logger *slog.Logger) {
+func Transcode(filepath string, ctx context.Context, logger *slog.Logger) error {
 	logger.Info("Starting to process filepath", "path", filepath)
 	time.Sleep(2 * time.Millisecond)
 	logger.Info("Finished processing filepath", "path", filepath)
+	return nil
 }
 
-func CreateInfinitelyConsumingWorkerPool[T any](numWorkers int, workerJob func(work T, ctx context.Context, logger *slog.Logger), works <-chan T, logger *slog.Logger, ctx context.Context) *sync.WaitGroup {
+func CreateInfinitelyConsumingWorkerPool[T any](numWorkers int, workerJob func(work T, ctx context.Context, logger *slog.Logger)error, works <-chan T, logger *slog.Logger, ctx context.Context) *sync.WaitGroup {
 	var wg sync.WaitGroup
 	if numWorkers <= 0 {
 		return &wg
