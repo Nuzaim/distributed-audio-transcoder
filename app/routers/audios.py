@@ -66,7 +66,7 @@ def upload_audio(
     return job
 
 # TODO: BATCH UPDATE.
-@audio_router.patch("/{audio_id}", response_model=QueuedAudioJob, status_code=status.HTTP_204_NO_CONTENT)
+@audio_router.patch("/{audio_id}", status_code=status.HTTP_204_NO_CONTENT)
 def update_audio(
     audio_id: UUID,
     audio_job: UpdateAudioJob,
@@ -79,4 +79,4 @@ def update_audio(
     job.output_path = audio_job.output_path
     session.commit()
     session.refresh(job)
-    return job
+    return
