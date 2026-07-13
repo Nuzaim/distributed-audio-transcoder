@@ -9,5 +9,9 @@ class QueuedAudioJob(BaseModel):
     input_path: str
     input_mime_type: str | None
     input_size_bytes: int
+    output_path: str | None
 
     model_config = {"from_attributes": True}
+
+class UpdateAudioJob(BaseModel):
+    output_path: str

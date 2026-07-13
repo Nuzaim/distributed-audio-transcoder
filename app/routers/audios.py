@@ -1,10 +1,10 @@
 from uuid import uuid4, UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
-from fastapi import APIRouter, Depends, File, UploadFile, status, exceptions
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status, exceptions
 
 from app.config import SQS_QUEUE_URL
-from app.schemas.audio import QueuedAudioJob
+from app.schemas.audio import QueuedAudioJob, UpdateAudioJob
 from app.models.audio import TranscodeJob
 from app.database import get_session
 from app.uploader import Uploader, get_file_uploader
@@ -61,6 +61,22 @@ def upload_audio(
         input_size_bytes=input_size_bytes,
     )
     session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+# TODO: BATCH UPDATE.
+@audio_router.patch("/{audio_id}", response_model=QueuedAudioJob, status_code=status.HTTP_204_NO_CONTENT)
+def update_audio(
+    audio_id: UUID,
+    audio_job: UpdateAudioJob,
+    session: DbSession = Depends(get_session),
+):
+    if not audio_job.output_path:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+    stmt = select(TranscodeJob).where(TranscodeJob.id==audio_id)
+    job = session.execute(stmt).scalar_one_or_none()
+    job.output_path = audio_job.output_path
     session.commit()
     session.refresh(job)
     return job
