@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -62,7 +63,11 @@ func CreateSqsClient(ctx context.Context, logger *slog.Logger) *SqsActions{
 	sqsClient := sqs.NewFromConfig(
 		sdkConfig, 
 		func (o *sqs.Options) {
-    		o.BaseEndpoint = aws.String("http://localhost:9324")
+			endpoint_url := os.Getenv("SQS_ENDPOINT_URL")
+			if endpoint_url == "" {
+				endpoint_url = "http://localhost:9324"
+			}
+			o.BaseEndpoint = aws.String(endpoint_url)
 		},
 	)
   sqsClientImpl := SqsActions{sqsClient, logger}

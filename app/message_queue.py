@@ -1,3 +1,4 @@
+import os
 from abc import ABC, abstractmethod
 from boto3 import client as aws_client
 
@@ -23,9 +24,10 @@ class SQSClient(MessageQueueClient):
 
 def get_sqs_client():
     # TODO: change to config.
+    endpoint_url_host = os.environ.get("SQS_ENDPOINT_URL", "http://localhost:9324")
     client = SQSClient(
         region_name='us-east-1',
-        endpoint_url="http://localhost:9324",
+        endpoint_url=endpoint_url_host,
         aws_access_key_id='mock_key',
         aws_secret_access_key='mock_secret',
     )
