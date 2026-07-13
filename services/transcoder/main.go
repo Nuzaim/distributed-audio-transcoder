@@ -21,7 +21,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	filepathsChan := make(chan string, 5)
-	wg := utils.CreateInfinitelyConsumingWorkerPool(4, utils.Transcode, filepathsChan, logger, ctx)
+	numPoolWorkers := 4
+	wg := utils.CreateInfinitelyConsumingWorkerPool(numPoolWorkers, utils.CreateHlsStream, filepathsChan, logger, ctx)
+	logger.Info("Worker pool created", "PoolWorkers", numPoolWorkers)
 	// WARNING: Change.
 	sqsClient := utils.CreateSqsClient(ctx, logger)
 	go func(){
