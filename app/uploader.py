@@ -24,7 +24,8 @@ class LocalUploader(Uploader):
         with input_path.open("wb") as destination:
             shutil.copyfileobj(audio_file.file, destination)
         input_size_bytes = input_path.stat().st_size
-        return input_path, input_size_bytes
+        absolute_input_path = input_path.resolve()
+        return absolute_input_path, input_size_bytes
 
 
 def get_file_uploader():
