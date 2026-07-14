@@ -16,5 +16,79 @@ services:
     depends_on:
       - elasticmq
 
+  transcoder-web:
+    image: transcoder_web
+    ports:
+      - "8000:8000"
+    environment:
+      SQS_ENDPOINT_URL: http://elasticmq:9324
+      S3_ENDPOINT_URL: http://minio:9000
+    depends_on:
+      - elasticmq
+      - minio
+    volumes:
+      - upload-data:/code/uploads
+
+  transcoder-service:
+    image: transcoder_service
+    environment:
+      SQS_ENDPOINT_URL: http://elasticmq:9324
+      WEB_API_URL: http://transcoder-web:8000/
+      S3_ENDPOINT_URL: http://minio:9000
+      FILE_DOWNLOAD_LOCATION: /tmp/
+    depends_on:
+      - elasticmq
+      - transcoder-web
+      - minio
+    volumes:
+      - upload-data:/code/uploads
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000" # API Port (S3 API endpoints)
+      - "9001:9001" # Web Console UI Port
+    volumes:
+      - upload-data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadminpassword
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+  # rclone-mount:
+  #   image: rclone/rclone:latest
+  #   container_name: rclone-ftp-mount
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./rclone.conf:/config/rclone/rclone.conf:ro
+  #     - upload-data:/data:shared
+  #   devices:
+  #     - /dev/fuse:/dev/fuse
+  #   cap_add:
+  #     - SYS_ADMIN
+  #   security_opt:
+  #     - apparmor:unconfined
+  #   command: >
+  #     mount my-ftp-server:/path/to/hls/files /data
+  #     --allow-other
+  #     --vfs-cache-mode full
+  #     --vfs-cache-max-age 24h
+  #     --dir-cache-time 5m
+  #     --read-only
+  #
+  # nginx-streamer:
+  #   image: nginx:alpine
+  #   container_name: nginx-hls-server
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080:80"
+  #   volumes:
+  #     - upload-data:/usr/share/nginx/html:ro
+  #   depends_on:
+  #     - rclone-mount
+
 volumes:
   elasticmq-data:
+  upload-data:
