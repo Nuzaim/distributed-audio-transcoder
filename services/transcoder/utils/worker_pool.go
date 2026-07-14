@@ -1,31 +1,72 @@
 package utils
 
 import (
-	"os"
-	"sync"
-	"time"
 	"bytes"
 	"context"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
-	"os/exec"
-	"log/slog"
-	"path/filepath"
+	"sync"
+	"time"
 )
 
 type WorkerJob struct{}
 
 func CreateHlsStream(srcPath string, ctx context.Context, logger *slog.Logger) error {
-	ext := filepath.Ext(srcPath)
-	filename := filepath.Base(srcPath)
-	baseName := strings.TrimSuffix(filename, ext)
-	dir, err := os.Getwd()
-	if err != nil {
-		logger.Error("Failed to get working directory", "err", err)
-    return err
+	// TODO: refactor.
+	if !filepath.IsAbs(srcPath) {
+		url, _ := url.Parse(srcPath)
+		logger.Info("Source Path is remote server location. Downloading file...", "source_path", srcPath)
+		resp, err := http.Get(url.String())
+		if err != nil {
+			logger.Error("Request failed", "err", err)
+			return err
+		}
+		defer resp.Body.Close()
+		cleanPath := strings.Trim(url.Path, "/")
+		segments := strings.Split(cleanPath, "/")
+		tempFileDirectory := "/tmp/" + segments[len(segments)-2]
+		tempFileLocation := tempFileDirectory + "/" + segments[len(segments)-1]
+		dir := filepath.Dir(tempFileLocation)
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			logger.Error("Failed to create directory", "directory", dir, "err", err)
+			return err
+		}
+		file, err := os.Create(tempFileLocation)
+		if err != nil {
+			logger.Error("Unable to create local file", "err", err)
+			return err
+		}
+		_, err = io.Copy(file, resp.Body)
+		if err != nil {
+			logger.Error("Failed to save file contents", "err", err)
+			return err
+		}
+		logger.Info("Successfully downloaded", "local_file_location", tempFileLocation)
+		srcPath = tempFileLocation
 	}
-	targetDir := filepath.Join(dir, "hls", baseName)
+	fileDir := filepath.Dir(srcPath)
+	fileFolder := filepath.Base(fileDir)
+	dir := os.Getenv("FILE_DOWNLOAD_LOCATION")
+	_, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Error("Directory does not exist!")
+			return err
+		}
+		logger.Error("Error checking directory", "directory", dir, "err", err)
+		return err
+	}
+	targetDir := filepath.Join(dir, "hls", fileFolder)
 	hlsPath := filepath.Join(targetDir, "playlist.m3u8")
+	logger.Info("paths", "targetDir", targetDir, "hlsPath", hlsPath)
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		logger.Error("Failed to create HLS directory", "err", err)
     return err
@@ -63,8 +104,22 @@ func CreateHlsStream(srcPath string, ctx context.Context, logger *slog.Logger) e
 	audioJobUpdate := &AudioJobUpdate{
 		OutputPath: hlsPath,
 	}
-	filenameSplit := strings.Split(baseName, "_")
-	UpdateAudioJob(filenameSplit[0], audioJobUpdate, logger)
+	// TODO: add validation for uuid.
+	s3Client := CreateS3Client(ctx, logger)
+	files, err := os.ReadDir(targetDir)
+	if err != nil {
+		logger.Error("Failed to get files in the directory", "directory", targetDir)
+		return err
+	}
+	for _, file := range files {
+		// Added as a failsafe.
+		if file.Type().IsDir() {
+			continue
+		}
+		s3Client.UploadFile(ctx, "test-bucket", filepath.Join(fileFolder, file.Name()), filepath.Join(targetDir, file.Name()))
+	}
+	// TODO: change to s3 path.
+	UpdateAudioJob(fileFolder, audioJobUpdate, logger)
 	return nil
 }
 
