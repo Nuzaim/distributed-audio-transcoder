@@ -1,7 +1,7 @@
 # --- Build Stage ---
 FROM python:3.14-slim AS builder
 
-WORKDIR /code
+WORKDIR /code/services/api
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -17,7 +17,7 @@ RUN pip install fastapi[standard] SQLAlchemy boto3
 # --- Final Production Stage ---
 FROM python:3.14-slim AS runner
 
-WORKDIR /code
+WORKDIR /code/services/api
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -27,9 +27,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy the entire virtual environment from the builder
 COPY --from=builder /opt/venv /opt/venv
 # Copy your application code
-COPY . /code/app
+COPY services/api/src /code/services/api/src
 
 EXPOSE 8000
 
 # Run Uvicorn using the venv path
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

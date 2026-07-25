@@ -14,4 +14,4 @@ dev = [
 ]
 
 [tool.fastapi]
-entrypoint = "app.main:app"
+entrypoint = "src.main:app"

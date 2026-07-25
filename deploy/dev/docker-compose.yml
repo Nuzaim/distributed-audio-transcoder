@@ -18,6 +18,9 @@ services:
 
   transcoder-web:
     image: transcoder_web
+    build:
+      context: ../..
+      dockerfile: services/api/Dockerfile
     ports:
       - "8000:8000"
     environment:
@@ -27,21 +30,24 @@ services:
       - elasticmq
       - minio
     volumes:
-      - upload-data:/code/uploads
+      - ../../runtime/uploads:/code/services/api/runtime/uploads
+      - ../../runtime/tmp:/code/services/api/runtime/tmp
 
   transcoder-service:
     image: transcoder_service
+    build:
+      context: ../../services/transcoder
     environment:
       SQS_ENDPOINT_URL: http://elasticmq:9324
       WEB_API_URL: http://transcoder-web:8000/
       S3_ENDPOINT_URL: http://minio:9000
-      FILE_DOWNLOAD_LOCATION: /tmp/
+      FILE_DOWNLOAD_LOCATION: /runtime
     depends_on:
       - elasticmq
       - transcoder-web
       - minio
     volumes:
-      - upload-data:/code/uploads
+      - ../../runtime:/runtime
 
   minio:
     image: quay.io/minio/minio:latest

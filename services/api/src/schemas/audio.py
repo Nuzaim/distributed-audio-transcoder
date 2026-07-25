@@ -1,6 +1,6 @@
 from uuid import UUID
 from pydantic import BaseModel
-from app.models.audio import JobStatus
+from ..models.audio import JobStatus
 
 
 class QueuedAudioJob(BaseModel):

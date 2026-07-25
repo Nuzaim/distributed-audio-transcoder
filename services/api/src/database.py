@@ -7,4 +7,11 @@ Session = sessionmaker(db_engine, expire_on_commit=False)
 
 def get_session():
     with Session() as session:
-        yield session
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()

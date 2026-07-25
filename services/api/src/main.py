@@ -2,9 +2,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.models.audio import Base
-from app.routers.audios import audio_router
-from app.database import db_engine
+from .database import db_engine
+from .models.audio import Base
+from .routers.audios import audio_router
 
 
 @asynccontextmanager

@@ -8,7 +8,7 @@ from boto3 import client as aws_client
 import botocore.exceptions
 from botocore.client import Config
 
-from app.config import DEFAULT_LOCAL_UPLOAD_DIR
+from .config import DEFAULT_LOCAL_UPLOAD_DIR
 
 
 class Uploader(ABC):
@@ -24,7 +24,7 @@ class LocalUploader(Uploader):
 
     def upload(self, job_id: UUID, audio_file: UploadFile) -> tuple[Path, int]:
         safe_filename = Path(audio_file.filename).name
-        input_path = DEFAULT_LOCAL_UPLOAD_DIR / f"{job_id}_{safe_filename}"
+        input_path = self.upload_dir / f"{job_id}_{safe_filename}"
         with input_path.open("wb") as destination:
             shutil.copyfileobj(audio_file.file, destination)
         input_size_bytes = input_path.stat().st_size
@@ -42,7 +42,6 @@ class S3Uploader(Uploader):
             aws_secret_access_key=aws_secret_access_key,
             config=Config(signature_version="s3v4"),
         )
-        self.local_downloader = LocalUploader(Path("/tmp"))
     def get_audio_playback_url(self, s3_key: str, expires_in_seconds: int = 3600) -> str:
         """Generates a temporary URL that anyone can use to stream/download the file."""
         url = self.s3_client.generate_presigned_url(

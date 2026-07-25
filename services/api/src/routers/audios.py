@@ -3,12 +3,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status, exceptions
 
-from app.config import SQS_QUEUE_URL
-from app.schemas.audio import QueuedAudioJob, UpdateAudioJob
-from app.models.audio import TranscodeJob
-from app.database import get_session
-from app.uploader import Uploader, get_file_uploader
-from app.message_queue import MessageQueueClient, get_sqs_client
+from ..config import SQS_QUEUE_URL
+from ..database import get_session
+from ..message_queue import MessageQueueClient, get_sqs_client
+from ..models.audio import TranscodeJob
+from ..schemas.audio import QueuedAudioJob, UpdateAudioJob
+from ..uploader import Uploader, get_file_uploader
 
 
 audio_router = APIRouter(prefix="/audio", tags=["audio"])
