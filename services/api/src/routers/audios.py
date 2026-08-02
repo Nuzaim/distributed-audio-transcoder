@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, s
 from ..config import SQS_QUEUE_URL
 from ..database import get_session
 from ..message_queue import MessageQueueClient, get_sqs_client
-from ..models.audio import TranscodeJob
+from ..models.audio import TranscodeJob, JobStatus, utc_now
 from ..schemas.audio import QueuedAudioJob, UpdateAudioJob
 from ..uploader import Uploader, get_file_uploader
 
@@ -76,7 +76,14 @@ def update_audio(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
     stmt = select(TranscodeJob).where(TranscodeJob.id==audio_id)
     job = session.execute(stmt).scalar_one_or_none()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Audio job with ID {audio_id} not found",
+        )
     job.output_path = audio_job.output_path
+    job.status = JobStatus.COMPLETED
+    job.completed_at = utc_now()
     session.commit()
     session.refresh(job)
     return
