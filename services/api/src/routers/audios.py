@@ -1,13 +1,14 @@
+import asyncio
 from uuid import uuid4, UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status, exceptions
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, status, exceptions
 
 from ..config import SQS_QUEUE_URL
 from ..database import get_session
 from ..message_queue import MessageQueueClient, get_sqs_client
-from ..models.audio import TranscodeJob, JobStatus, utc_now
-from ..schemas.audio import QueuedAudioJob, UpdateAudioJob
+from ..models.audio import JobStatus, TranscodeJob, utc_now
+from ..schemas.audio import AudioJobStatus, QueuedAudioJob, UpdateAudioJob
 from ..uploader import Uploader, get_file_uploader
 
 
@@ -87,3 +88,40 @@ def update_audio(
     session.commit()
     session.refresh(job)
     return
+
+@audio_router.websocket("/{audio_id}/ws")
+async def stream_audio_status(
+    websocket: WebSocket,
+    audio_id: UUID,
+):
+    await websocket.accept()
+    last_message: AudioJobStatus | None = None
+    try:
+        while True:
+            session_gen = get_session()
+            session = next(session_gen)
+            stmt = select(TranscodeJob).where(TranscodeJob.id == audio_id)
+            job = session.execute(stmt).scalar_one_or_none()
+            if not job:
+                await websocket.send_json({
+                    "error": f"Audio job with ID {audio_id} not found",
+                })
+                await websocket.close(code=1008)
+                return
+
+            audio_status = AudioJobStatus(
+                    id=job.id,
+                    status=job.status,
+                    output_path=job.output_path,
+                    completed=job.status == JobStatus.COMPLETED or job.output_path is not None,
+                )
+            if audio_status != last_message:
+                await websocket.send_json(audio_status.model_dump(mode="json"))
+                last_message = audio_status
+            if audio_status.completed:
+                await websocket.close()
+                return
+            session_gen.close()
+            await asyncio.sleep(1)
+    except WebSocketDisconnect:
+        return

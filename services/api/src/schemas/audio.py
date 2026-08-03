@@ -15,3 +15,10 @@ class QueuedAudioJob(BaseModel):
 
 class UpdateAudioJob(BaseModel):
     output_path: str
+
+
+class AudioJobStatus(BaseModel):
+    id: UUID
+    status: JobStatus
+    output_path: str | None
+    completed: bool
