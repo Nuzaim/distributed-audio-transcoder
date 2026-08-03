@@ -55,10 +55,10 @@ class S3Uploader(Uploader):
         return url
     def upload(self, job_id: UUID, audio_file: UploadFile) -> tuple[Path, int]:
         upload_path = f"{job_id}/{audio_file.filename}"
-        local_file_path, local_file_size_bytes = self.local_downloader.upload(job_id, audio_file)
-        self.s3_client.upload_file(local_file_path, self.bucket_name, upload_path)
+        self.s3_client.upload_fileobj(audio_file.file, self.bucket_name, upload_path)
         s3_signed_url = self.get_audio_playback_url(upload_path)
-        return s3_signed_url, local_file_size_bytes
+        file_size = audio_file.size or 0
+        return s3_signed_url, file_size
 
 
 def get_file_uploader():
