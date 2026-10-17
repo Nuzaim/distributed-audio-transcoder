@@ -2,6 +2,17 @@
 
 This file tracks capabilities that are described by the intended design but are not implemented in the current project.
 
+## Transcoder consumer review (`services/transcoder/main.go`)
+
+- [ ] **P0 — Preserve job identity:** carry both `job_id` and `input_path` through the worker pool, validate them, and use `job_id` for output naming and the completion API request. The current consumer drops the ID.
+- [ ] **P0 — Acknowledge after durable success:** retain each SQS receipt handle with its job, propagate storage and completion-API errors through the worker pool, and delete only successful jobs. Check per-message failures from batch deletion.
+- [ ] **P0 — Validate messages safely:** handle absent or nil body/`content_type`, unsupported types, malformed JSON, and empty fields without panicking or dispatching an empty path. Choose an explicit retry or dead-letter policy for invalid messages.
+- [ ] **P1 — Make shutdown single-owner:** stop polling on cancellation, have the producer close the work channel, define whether in-flight jobs drain or cancel, and wait for workers before exiting. Avoid closing the channel concurrently with sends and avoid `log.Fatal` in the receive loop.
+- [ ] **P1 — Protect long-running jobs:** configure a visibility timeout and extend it while processing when jobs can outlast it, so a message is not delivered to another worker mid-transcode.
+- [ ] **P1 — Retry transient queue and job failures:** add context-aware backoff for receive and delete errors, and route processing failures through the retry/dead-letter policy.
+- [ ] **P2 — Configure consumer capacity:** validate the queue URL, receive batch size, long-poll duration, worker count, and channel capacity instead of hard-coding them in `main`.
+- [ ] **P2 — Add useful consumer logs:** include job and SQS message IDs, and log validation, processing, and acknowledgement outcomes with structured fields.
+
 ## Job lifecycle
 
 - Mark a job `processing` when a worker claims it.

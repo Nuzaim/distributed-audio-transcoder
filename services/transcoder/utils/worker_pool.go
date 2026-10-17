@@ -18,39 +18,84 @@ import (
 
 type WorkerJob struct{}
 
+type FileFetcher interface {
+	Fetch(ctx context.Context, uri string) (localPath string, cleanup func(), err error)
+}
+
+type LocalFileFetcher struct{
+	logger *slog.Logger
+}
+
+func (l LocalFileFetcher) Fetch(ctx context.Context, uri string) (string, func(), error) {
+	return "", func() {}, nil
+}
+
+type S3FileFetcher struct{
+	logger *slog.Logger
+}
+
+func (l S3FileFetcher) Fetch(ctx context.Context, uri string) (string, func(), error) {
+	cleanup := func() {}
+	url, _ := url.Parse(uri)
+	l.logger.Info("Source Path is remote server location. Downloading file...", "source_path", uri)
+	resp, err := http.Get(url.String())
+	if err != nil {
+		l.logger.Error("Request failed", "err", err)
+		return "", cleanup, err
+	}
+	defer resp.Body.Close()
+	cleanPath := strings.Trim(url.Path, "/")
+	segments := strings.Split(cleanPath, "/")
+	// TODO: use os.CreateTemp instead
+	tempFileDirectory := "/tmp/" + segments[len(segments)-2]
+	tempFileLocation := tempFileDirectory + "/" + segments[len(segments)-1]
+	dir := filepath.Dir(tempFileLocation)
+	err = os.MkdirAll(dir, 0755)
+	cleanup = func() {
+		os.RemoveAll(tempFileLocation)
+	}
+	if err != nil {
+		cleanup()
+		l.logger.Error("Failed to create directory", "directory", dir, "err", err)
+		return "", cleanup, err
+	}
+	file, err := os.Create(tempFileLocation)
+	if err != nil {
+		cleanup()
+		l.logger.Error("Unable to create local file", "err", err)
+		return "", cleanup, err
+	}
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		cleanup()
+		l.logger.Error("Failed to save file contents", "err", err)
+		return "", cleanup, err
+	}
+	l.logger.Info("Successfully downloaded", "local_file_location", tempFileLocation)
+	return tempFileLocation, cleanup, nil
+}
+
+type UniversalFetcher struct {
+	local FileFetcher
+	s3    FileFetcher
+}
+
 func CreateHlsStream(srcPath string, ctx context.Context, logger *slog.Logger) error {
-	// TODO: refactor.
+	universalFetcher := UniversalFetcher{
+		local: LocalFileFetcher{
+			logger: logger,
+		},
+		s3: S3FileFetcher{
+			logger: logger,
+		},
+	}
 	if !filepath.IsAbs(srcPath) {
-		url, _ := url.Parse(srcPath)
-		logger.Info("Source Path is remote server location. Downloading file...", "source_path", srcPath)
-		resp, err := http.Get(url.String())
+		localPath, cleanup, err := universalFetcher.s3.Fetch(ctx, srcPath)
 		if err != nil {
-			logger.Error("Request failed", "err", err)
 			return err
 		}
-		defer resp.Body.Close()
-		cleanPath := strings.Trim(url.Path, "/")
-		segments := strings.Split(cleanPath, "/")
-		tempFileDirectory := "/tmp/" + segments[len(segments)-2]
-		tempFileLocation := tempFileDirectory + "/" + segments[len(segments)-1]
-		dir := filepath.Dir(tempFileLocation)
-		err = os.MkdirAll(dir, 0755)
-		if err != nil {
-			logger.Error("Failed to create directory", "directory", dir, "err", err)
-			return err
-		}
-		file, err := os.Create(tempFileLocation)
-		if err != nil {
-			logger.Error("Unable to create local file", "err", err)
-			return err
-		}
-		_, err = io.Copy(file, resp.Body)
-		if err != nil {
-			logger.Error("Failed to save file contents", "err", err)
-			return err
-		}
-		logger.Info("Successfully downloaded", "local_file_location", tempFileLocation)
-		srcPath = tempFileLocation
+		defer cleanup()
+		srcPath = localPath
 	}
 	fileDir := filepath.Dir(srcPath)
 	fileFolder := filepath.Base(fileDir)
