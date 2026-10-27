@@ -80,3 +80,27 @@ docker compose -f deploy/dev/docker-compose.yml config
 cd services/api && python3 -m py_compile src/*.py src/models/*.py src/routers/*.py src/schemas/*.py
 cd services/transcoder && GOCACHE=/tmp/go-build go build .
 ```
+
+## Testing on Test Data
+
+Run the test suite on sample audio files:
+
+```sh
+# End-to-end test against running stack (auto-creates MinIO bucket, uploads audio, monitors transcode, verifies HLS)
+./scripts/test_app.sh
+
+# Or with Python directly:
+python3 scripts/test_app.py
+
+# Test a specific file
+python3 scripts/test_app.py --file test_data/sample_5s.mp3
+
+# Test concurrency across worker pool
+python3 scripts/test_app.py --concurrent 4
+
+# Run Go worker unit & integration tests on test audio
+./scripts/test_app.sh --go
+
+# Generate fresh synthetic test audio fixtures in test_data/
+python3 scripts/test_app.py --generate
+```

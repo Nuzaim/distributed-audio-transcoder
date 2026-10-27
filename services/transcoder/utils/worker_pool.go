@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -92,7 +93,7 @@ func CreateHlsStream(srcPath string, ctx context.Context, logger *slog.Logger) e
 	if !filepath.IsAbs(srcPath) {
 		localPath, cleanup, err := universalFetcher.s3.Fetch(ctx, srcPath)
 		if err != nil {
-			return err
+			return fmt.Errorf("fetching s3 object %q: %w", srcPath, err)
 		}
 		defer cleanup()
 		srcPath = localPath
@@ -103,18 +104,15 @@ func CreateHlsStream(srcPath string, ctx context.Context, logger *slog.Logger) e
 	_, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.Error("Directory does not exist!")
-			return err
+			return fmt.Errorf("directory does not exists %q: %w", dir, err)
 		}
-		logger.Error("Error checking directory", "directory", dir, "err", err)
-		return err
+		return fmt.Errorf("checking directory %q: %w", dir, err)
 	}
 	targetDir := filepath.Join(dir, "hls", fileFolder)
 	hlsPath := filepath.Join(targetDir, "playlist.m3u8")
 	logger.Info("paths", "targetDir", targetDir, "hlsPath", hlsPath)
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		logger.Error("Failed to create HLS directory", "err", err)
-    return err
+		return fmt.Errorf("creating HLS directory %q: %w", targetDir, err)
 	}
 	chunk_size := 20
 	args := []string{
@@ -153,22 +151,24 @@ func CreateHlsStream(srcPath string, ctx context.Context, logger *slog.Logger) e
 	s3Client := CreateS3Client(ctx, logger)
 	files, err := os.ReadDir(targetDir)
 	if err != nil {
-		logger.Error("Failed to get files in the directory", "directory", targetDir)
-		return err
+		return fmt.Errorf("reading files directory %q: %w", targetDir, err)
 	}
 	for _, file := range files {
 		// Added as a failsafe.
 		if file.Type().IsDir() {
 			continue
 		}
-		s3Client.UploadFile(ctx, "test-bucket", filepath.Join(fileFolder, file.Name()), filepath.Join(targetDir, file.Name()))
+		err = s3Client.UploadFile(ctx, "test-bucket", filepath.Join(fileFolder, file.Name()), filepath.Join(targetDir, file.Name()))
+		if err != nil {
+			return fmt.Errorf("uploading file %q: %w", file.Name(), err)
+		}
 	}
 	// TODO: change to s3 path.
 	UpdateAudioJob(fileFolder, audioJobUpdate, logger)
 	return nil
 }
 
-func CreateInfinitelyConsumingWorkerPool[T any](numWorkers int, workerJob func(work T, ctx context.Context, logger *slog.Logger)error, works <-chan T, logger *slog.Logger, ctx context.Context) *sync.WaitGroup {
+func CreateInfinitelyConsumingWorkerPool[T any](numWorkers int, workerJob func(work T, ctx context.Context, logger *slog.Logger)error, works <-chan T, finishedWorks chan<- T, logger *slog.Logger, ctx context.Context) *sync.WaitGroup {
 	var wg sync.WaitGroup
 	if numWorkers <= 0 {
 		return &wg
@@ -179,8 +179,13 @@ func CreateInfinitelyConsumingWorkerPool[T any](numWorkers int, workerJob func(w
 			for work := range works {
 				// TODO: create a timer to cancel automatically to avoid stale workers.
 				logger.Debug("Starting to process work", "work", work)
-				workerJob(work, ctx, logger)
+				err := workerJob(work, ctx, logger)
+				if err != nil {
+					logger.Error("Failed processing work", "work", work, "error", err)
+					continue
+				}
 				logger.Debug("Finished processing work", "work", work)
+				finishedWorks <- work
 			}
 			wg.Done()
 		}()
