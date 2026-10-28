@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"os/signal"
 	"syscall"
@@ -46,22 +45,23 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	// TODO:
-	filepathsChan := make(chan types.Message, 5)
+	messagesChan := make(chan types.Message, 5)
 	processedMessages := make(chan types.Message, 5)
 	numPoolWorkers := 4
-	wg := utils.CreateInfinitelyConsumingWorkerPool(numPoolWorkers, wrapperForCreateHlsStream, filepathsChan, processedMessages, logger, ctx)
+	wg := utils.CreateInfinitelyConsumingWorkerPool(numPoolWorkers, wrapperForCreateHlsStream, messagesChan, processedMessages, logger, ctx)
 	logger.Info("Worker pool created", "PoolWorkers", numPoolWorkers)
 	// WARNING: Change.
 	sqsClient := utils.CreateSqsClient(ctx, logger)
 	go func(){
 		<-ctx.Done()
-		close(filepathsChan)
-		// close(processedMessages)
+		close(messagesChan)
 		logger.Info("Channel closed")
 		wg.Wait()
 	}()
 	go func(){
 		for processedMessage := range processedMessages {
+			// look into how to delete 1 message.
+			// TODO: separate context to avoid cancellation during deletion.
 			sqsClient.DeleteMessages(ctx, "/02-queue-with-dead-letter", []types.Message{processedMessage})
 			logger.Info("Deleted the finished message", "processedMessage", processedMessage)
 		}
@@ -69,13 +69,17 @@ func main() {
 	for {
 		messages, err := sqsClient.GetMessages(ctx, "/02-queue-with-dead-letter", 2, 2)
 		if err!=nil{
-			// ???
-			// exits immediately?
-			log.Fatal(err)
+			if ctx.Err()!=nil {
+				logger.Info("context cancelled", "err", err)
+				// TODO: reset visibility
+				// make an interface for this.
+				break
+			}
+			logger.Error("get messages from SQS queue", "err", err)
+			continue
 		}
 		for _, message := range messages{
-			filepathsChan <- message
+			messagesChan <- message
 		}
-		// sqsClient.DeleteMessages(ctx, "/02-queue-with-dead-letter", messages)
 	}
 }

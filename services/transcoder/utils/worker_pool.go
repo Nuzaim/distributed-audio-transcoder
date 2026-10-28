@@ -176,6 +176,7 @@ func CreateInfinitelyConsumingWorkerPool[T any](numWorkers int, workerJob func(w
 	wg.Add(numWorkers)
 	for range numWorkers {
 		go func() {
+			defer wg.Done()
 			for work := range works {
 				// TODO: create a timer to cancel automatically to avoid stale workers.
 				logger.Debug("Starting to process work", "work", work)
@@ -187,8 +188,11 @@ func CreateInfinitelyConsumingWorkerPool[T any](numWorkers int, workerJob func(w
 				logger.Debug("Finished processing work", "work", work)
 				finishedWorks <- work
 			}
-			wg.Done()
 		}()
 	}
+	go func(){
+		wg.Wait()
+		close(finishedWorks)
+	}()
 	return &wg
 }
