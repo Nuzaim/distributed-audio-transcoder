@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/signal"
+	"sync"
 	"syscall"
 	"transcoder-service/utils"
 
@@ -56,16 +57,16 @@ func main() {
 		<-ctx.Done()
 		close(messagesChan)
 		logger.Info("Channel closed")
-		wg.Wait()
 	}()
-	go func(){
+	var deletionWg sync.WaitGroup
+	deletionWg.Go(func(){
 		for processedMessage := range processedMessages {
 			// look into how to delete 1 message.
 			// TODO: separate context to avoid cancellation during deletion.
 			sqsClient.DeleteMessages(ctx, "/02-queue-with-dead-letter", []types.Message{processedMessage})
 			logger.Info("Deleted the finished message", "processedMessage", processedMessage)
 		}
-	}()
+	})
 	for {
 		messages, err := sqsClient.GetMessages(ctx, "/02-queue-with-dead-letter", 2, 2)
 		if err!=nil{
@@ -82,4 +83,6 @@ func main() {
 			messagesChan <- message
 		}
 	}
+	wg.Wait()
+	deletionWg.Wait()
 }
