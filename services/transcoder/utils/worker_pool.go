@@ -48,8 +48,8 @@ func (l S3FileFetcher) Fetch(ctx context.Context, uri string) (string, func(), e
 	cleanPath := strings.Trim(url.Path, "/")
 	segments := strings.Split(cleanPath, "/")
 	// TODO: use os.CreateTemp instead
-	tempFileDirectory := "/tmp/" + segments[len(segments)-2]
-	tempFileLocation := tempFileDirectory + "/" + segments[len(segments)-1]
+	tempFileDirectory := filepath.Join(os.TempDir(), segments[len(segments)-2])
+	tempFileLocation := filepath.Join(tempFileDirectory, segments[len(segments)-1])
 	dir := filepath.Dir(tempFileLocation)
 	err = os.MkdirAll(dir, 0755)
 	cleanup = func() {
