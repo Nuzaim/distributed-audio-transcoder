@@ -61,10 +61,14 @@ func main() {
 	var deletionWg sync.WaitGroup
 	deletionWg.Go(func(){
 		for processedMessage := range processedMessages {
-			// look into how to delete 1 message.
-			// TODO: separate context to avoid cancellation during deletion.
-			sqsClient.DeleteMessages(ctx, "/02-queue-with-dead-letter", []types.Message{processedMessage})
-			logger.Info("Deleted the finished message", "processedMessage", processedMessage)
+			delCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			err := sqsClient.DeleteMessage(delCtx, "/02-queue-with-dead-letter", processedMessage)
+			cancel()
+			if err != nil {
+				logger.Error("Failed to delete finished message from queue", "err", err, "messageId", processedMessage.MessageId)
+				continue
+			}
+			logger.Info("Deleted the finished message", "messageId", processedMessage.MessageId)
 		}
 	})
 	for {

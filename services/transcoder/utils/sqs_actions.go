@@ -35,6 +35,19 @@ func (actor SqsActions) GetMessages(ctx context.Context, queueUrl string, maxMes
 	return messages, err
 }
 
+func (actor SqsActions) DeleteMessage(ctx context.Context, queueUrl string, message types.Message) error {
+	// NOTE: should this be handled on the ones that use this functionality?
+	receiptHandle := message.ReceiptHandle
+	_, err := actor.SqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
+		QueueUrl:      aws.String(queueUrl),
+		ReceiptHandle: receiptHandle,
+	})
+	if err != nil {
+		actor.logger.Error("Couldn't delete message from queue", "QueueUrl", queueUrl, "err", err)
+	}
+	return err
+}
+
 func (actor SqsActions) DeleteMessages(ctx context.Context, queueUrl string, messages []types.Message) error {
 	entries := make([]types.DeleteMessageBatchRequestEntry, len(messages))
 	for msgIndex := range messages {
